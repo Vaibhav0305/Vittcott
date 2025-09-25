@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VittCott — Assistant</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Feather icons -->
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js" defer></script>
+
+  <style>
+    /* small custom styles to make layout ChatGPT-like */
+    html, body, #root { height: 100%; }
+    body { background: #071225; color: #e6eef8; }
+    .sidebar { width: 300px; min-width: 260px; }
+    .conversation-selected { background: rgba(255,255,255,0.03); }
+    .msg-user { background: #0ea5a4; color: #022; }
+    .msg-assistant { background: #0f1724; color: #e6eef8; }
+    .input-area { backdrop-filter: blur(6px); background: rgba(6,10,15,0.6); }
+    .scrollbar-thin::-webkit-scrollbar { height: 8px; width: 8px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 8px; }
+    /* small mobile sidebar overlay fix */
+    #mobile-sidebar { z-index: 60; }
+  </style>
+</head>
+<body class="antialiased font-sans">
+  <div id="root" class="h-screen flex">
+    <!-- Sidebar (desktop) -->
+    <aside class="sidebar hidden md:flex flex-col bg-[#041426] border-r border-gray-800 p-4">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="text-indigo-400 font-bold text-lg">VittCott</div>
+        <div class="text-xs text-gray-400">Assistant</div>
+      </div>
+
+      <button id="new-chat" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-md px-3 py-2 flex items-center gap-2">
+        <i data-feather="plus" class="h-4 w-4"></i>
+        New chat
+      </button>
+
+      <div class="mt-4">
+        <input id="search-conv" placeholder="Search chats..." class="w-full px-3 py-2 rounded bg-[#071427] text-sm border border-gray-800 text-gray-300" />
+      </div>
+
+      <div id="conversations" class="mt-4 overflow-auto flex-1 scrollbar-thin space-y-2"></div>
+
+      <div class="mt-4 text-xs text-gray-400">
+        <button id="clear-all" class="text-red-400 hover:underline">Clear all chats</button>
+      </div>
+    </aside>
+
+    <!-- Main column -->
+    <div class="flex-1 flex flex-col">
+      <!-- Top bar -->
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#05101a]">
+        <div class="flex items-center gap-4">
+          <button id="open-sidebar" class="md:hidden px-2 py-1 rounded bg-[#0b1720] text-gray-300">
+            <i data-feather="menu"></i>
+          </button>
+          <h1 class="text-lg font-semibold">VittCott Assistant</h1>
+          <div class="text-sm text-gray-400 hidden sm:inline">Ask about stocks, SIPs, and portfolio suggestions</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="export-conv" class="text-sm text-gray-300 hover:underline">Export</button>
+          <button id="delete-conv" class="text-sm text-red-400 hidden md:inline">Delete</button>
+        </div>
+      </div>
+
+      <!-- Chat and right info -->
+      <div class="flex-1 overflow-hidden">
+        <main class="h-full flex">
+          <!-- Chat column -->
+          <section class="flex-1 flex flex-col">
+            <!-- messages -->
+            <div id="messages" class="flex-1 overflow-auto p-6 space-y-4 scrollbar-thin" aria-live="polite">
+              <div class="text-center text-gray-400 text-sm">Start a new chat or choose one from the left.</div>
+            </div>
+
+            <!-- suggested chips -->
+            <div class="px-6 pb-4">
+              <div class="flex flex-wrap gap-2">
+                <button class="suggest-chip px-3 py-1 rounded bg-[#0f1724] text-sm text-gray-200" data-prompt="Suggest a beginner SIP plan">Suggest SIP plan</button>
+                <button class="suggest-chip px-3 py-1 rounded bg-[#0f1724] text-sm text-gray-200" data-prompt="Top 5 long-term stocks in India">Top stock picks</button>
+                <button class="suggest-chip px-3 py-1 rounded bg-[#0f1724] text-sm text-gray-200" data-prompt="How much should a 21-year-old invest monthly?">Savings advice</button>
+              </div>
+            </div>
+
+            <!-- input -->
+            <form id="chat-form" class="px-4 py-3 border-t border-gray-800 input-area">
+              <div class="flex gap-3 items-center">
+                <button type="button" id="attach-btn" class="p-2 rounded bg-transparent text-gray-300" title="Attach">
+                  <i data-feather="paperclip"></i>
+                </button>
+
+                <textarea id="chat-input" rows="1" class="flex-1 resize-none rounded px-3 py-2 bg-[#071426] text-sm text-gray-100 placeholder-gray-400" placeholder="Type your message and press Enter (Shift+Enter for newline)"></textarea>
+
+                <div class="flex items-center gap-2">
+                  <button type="button" id="history-btn" title="Conversation history" class="p-2 rounded bg-transparent text-gray-300 hidden md:inline"><i data-feather="clock"></i></button>
+                  <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded flex items-center gap-2">
+                    <i data-feather="send" class="h-4 w-4"></i>
+                    <span class="hidden sm:inline">Send</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <!-- right info column -->
+          <aside class="w-96 hidden lg:block border-l border-gray-800 bg-[#041017] p-6">
+            <h3 class="text-sm text-gray-300 font-semibold">About this assistant</h3>
+            <p class="text-sm text-gray-400 mt-2">VittCott Assistant helps with investing basics, SIP planning and quick explainers. This demo stores chats in your browser. For production, wire this to a secure server API that calls OpenAI and persists conversations to a DB.</p>
+
+            <div class="mt-6">
+              <h4 class="text-xs text-gray-400 uppercase mb-2">Quick tips</h4>
+              <ul class="text-sm text-gray-400 space-y-2">
+                <li>Ask concise questions for best results.</li>
+                <li>Use the export button to download a conversation.</li>
+                <li>Server-side storage & auth recommended for real users.</li>
+              </ul>
+            </div>
+          </aside>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile sidebar -->
+  <div id="mobile-sidebar" class="fixed inset-0 hidden bg-black/50">
+    <div class="w-72 bg-[#061022] h-full p-4">
+      <div class="flex items-center justify-between">
+        <div class="text-indigo-400 font-semibold">Conversations</div>
+        <button id="close-mobile-sidebar" class="text-gray-300 p-1"><i data-feather="x"></i></button>
+      </div>
+      <div class="mt-4">
+        <button id="mobile-new-chat" class="w-full bg-indigo-600 text-white px-3 py-2 rounded">New chat</button>
+      </div>
+      <div id="mobile-conversations" class="mt-4 overflow-auto"></div>
+    </div>
+  </div>
+
+  <!-- Script: chat logic (localStorage-based, robust) -->
+  <script>
+    // Utilities
+    const uid = () => 'c_' + Math.random().toString(36).slice(2, 9);
+    const mid = () => 'm_' + Math.random().toString(36).slice(2, 9);
+    const LS_KEY = 'vittcott_conversations_v1';
+
+    // Elements
+    const convListEl = document.getElementById('conversations');
+    const messagesEl = document.getElementById('messages');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const newChatBtn = document.getElementById('new-chat');
+    const suggestBtns = document.querySelectorAll('.suggest-chip');
+    const searchInput = document.getElementById('search-conv');
+    const clearAllBtn = document.getElementById('clear-all');
+    const exportBtn = document.getElementById('export-conv');
+    const deleteBtn = document.getElementById('delete-conv');
+
+    // Mobile
+    const mobileSidebar = document.getElementById('mobile-sidebar');
+    const openSidebarBtn = document.getElementById('open-sidebar');
+    const closeMobileSidebar = document.getElementById('close-mobile-sidebar');
+    const mobileConvsEl = document.getElementById('mobile-conversations');
+    const mobileNewBtn = document.getElementById('mobile-new-chat');
+
+    // Data
+    let conversations = [];
+    try {
+      conversations = JSON.parse(localStorage.getItem(LS_KEY) || '[]') || [];
+    } catch (e) {
+      conversations = [];
+    }
+    let activeId = conversations[0]?.id || null;
+
+    // Helpers
+    function save() {
+      localStorage.setItem(LS_KEY, JSON.stringify(conversations));
+    }
+
+    function createConversation(initialTitle = 'New conversation') {
+      const id = uid();
+      const conv = { id, title: initialTitle, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [] };
+      conversations.unshift(conv);
+      save();
+      renderConversations();
+      setActive(id);
+      return id;
+    }
+
+    function setActive(id) {
+      activeId = id;
+      renderConversations(searchInput?.value || '');
+      renderMessages();
+      updateControls();
+    }
+
+    function updateControls() {
+      if (!deleteBtn) return;
+      deleteBtn.classList.toggle('hidden', !activeId);
+    }
+
+    function renderConversations(filter = '') {
+      if (!convListEl) return;
+      convListEl.innerHTML = '';
+
+      const list = conversations
+        .filter(c => {
+          if (!filter) return true;
+          const lower = filter.toLowerCase();
+          if ((c.title || '').toLowerCase().includes(lower)) return true;
+          return (c.messages || []).some(m => (m.content || '').toLowerCase().includes(lower));
+        })
+        .sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+      list.forEach(conv => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full text-left px-3 py-2 rounded flex items-start gap-2 hover:bg-white/5 ' + (conv.id === activeId ? 'conversation-selected' : '');
+        btn.innerHTML = `
+          <div class="flex-1">
+            <div class="font-semibold text-sm truncate">${escapeHtml(conv.title || 'Untitled')}</div>
+            <div class="text-xs text-gray-400 truncate">${escapeHtml((conv.messages?.length ? conv.messages[conv.messages.length-1].content.slice(0,60) : 'No messages yet'))}</div>
+          </div>
+          <div class="text-xs text-gray-500">${new Date(conv.updatedAt).toLocaleDateString()}</div>
+        `;
+        btn.addEventListener('click', () => setActive(conv.id));
+        convListEl.appendChild(btn);
+      });
+
+      // mobile mirror
+      if (mobileConvsEl) {
+        mobileConvsEl.innerHTML = '';
+        list.forEach(conv => {
+          const el = document.createElement('div');
+          el.className = 'py-2 border-b border-gray-800';
+          el.innerHTML = `<div class="font-semibold">${escapeHtml(conv.title)}</div><div class="text-xs text-gray-400">${escapeHtml(conv.messages?.[conv.messages.length-1]?.content?.slice(0,60) || 'No messages yet')}</div>`;
+          el.addEventListener('click', () => { setActive(conv.id); mobileSidebar.classList.add('hidden'); });
+          mobileConvsEl.appendChild(el);
+        });
+      }
+    }
+
+    function renderMessages() {
+      messagesEl.innerHTML = '';
+      const conv = conversations.find(c => c.id === activeId);
+      if (!conv) {
+        messagesEl.innerHTML = '<div class="text-center text-gray-400 mt-8">No conversation selected. Start a new chat.</div>';
+        return;
+      }
+      conv.messages.forEach(m => {
+        const wrapper = document.createElement('div');
+        wrapper.className = m.role === 'user' ? 'flex justify-end' : 'flex justify-start';
+        const bubble = document.createElement('div');
+        bubble.className = (m.role === 'user' ? 'msg-user' : 'msg-assistant') + ' rounded-xl px-4 py-2 max-w-[75%] text-sm';
+        bubble.textContent = m.content;
+        wrapper.appendChild(bubble);
+        messagesEl.appendChild(wrapper);
+      });
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // Escape help to prevent injection in innerHTML usage
+    function escapeHtml(unsafe) {
+      if (unsafe === undefined || unsafe === null) return '';
+      return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Send message flow (client demo stub; replace with server call)
+    async function sendMessage(text) {
+      if (!text) return;
+      if (!activeId) createConversation();
+      const conv = conversations.find(c => c.id === activeId);
+      if (!conv) return;
+
+      // Add user message
+      const userMsg = { id: mid(), role: 'user', content: text, createdAt: new Date().toISOString() };
+      conv.messages.push(userMsg);
+      conv.updatedAt = new Date().toISOString();
+      // If title is default or short, set title from first user message
+      if (!conv.title || conv.title === 'New conversation' || conv.title.length < 5) {
+        conv.title = text.slice(0, 60);
+      }
+      save();
+      renderConversations(searchInput?.value || '');
+      renderMessages();
+
+      // Add thinking placeholder
+      const thinking = { id: mid(), role: 'assistant', content: 'Thinking...', createdAt: new Date().toISOString(), placeholder: true };
+      conv.messages.push(thinking);
+      renderMessages();
+
+      // ---- REPLACE THIS BLOCK with real server call to /api/ai ----
+      // Example:
+      // const res = await fetch('/api/ai', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ conversationId: conv.id, message: text }) });
+      // const json = await res.json();
+      // const assistantText = json.reply;
+      await new Promise(r => setTimeout(r, 800));
+      const assistantText = `(demo) I heard: "${text}". Replace this stub with a POST to /api/ai that stores messages in your DB.`;
+      // ---- END demo stub ----
+
+      // replace thinking message with assistant reply
+      const idx = conv.messages.findIndex(m => m.placeholder);
+      if (idx !== -1) conv.messages.splice(idx, 1);
+      conv.messages.push({ id: mid(), role: 'assistant', content: assistantText, createdAt: new Date().toISOString() });
+      conv.updatedAt = new Date().toISOString();
+      save();
+      renderConversations(searchInput?.value || '');
+      renderMessages();
+    }
+
+    // Event listeners
+    chatForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = chatInput.value.trim();
+      if (!text) return;
+      sendMessage(text);
+      chatInput.value = '';
+      chatInput.style.height = 'auto';
+    });
+
+    // Enter to send (Shift+Enter newline)
+    chatInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.requestSubmit();
+      }
+      // autosize
+      setTimeout(() => {
+        chatInput.style.height = 'auto';
+        chatInput.style.height = chatInput.scrollHeight + 'px';
+      }, 0);
+    });
+
+    // New chat
+    newChatBtn?.addEventListener('click', () => {
+      createConversation();
+      setTimeout(() => chatInput.focus(), 80);
+    });
+    mobileNewBtn?.addEventListener('click', () => { createConversation(); mobileSidebar.classList.add('hidden'); });
+
+    // Suggest chips
+    suggestBtns.forEach(b => b.addEventListener('click', () => {
+      const p = b.getAttribute('data-prompt');
+      if (!activeId) createConversation();
+      chatInput.value = p;
+      chatInput.focus();
+    }));
+
+    // Search filter
+    searchInput?.addEventListener('input', (e) => renderConversations(e.target.value));
+
+    // Clear all
+    clearAllBtn?.addEventListener('click', () => {
+      if (!confirm('Clear all conversations locally? This cannot be undone.')) return;
+      conversations = [];
+      activeId = null;
+      save();
+      renderConversations();
+      renderMessages();
+    });
+
+    // Export active
+    exportBtn?.addEventListener('click', () => {
+      const conv = conversations.find(c => c.id === activeId);
+      if (!conv) return alert('No conversation selected');
+      const blob = new Blob([JSON.stringify(conv, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (conv.title || 'conversation') + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Delete active
+    deleteBtn?.addEventListener('click', () => {
+      if (!activeId) return alert('No conversation selected');
+      if (!confirm('Delete this conversation?')) return;
+      conversations = conversations.filter(c => c.id !== activeId);
+      activeId = conversations[0]?.id || null;
+      save();
+      renderConversations();
+      renderMessages();
+    });
+
+    // Mobile sidebar open/close
+    openSidebarBtn?.addEventListener('click', () => mobileSidebar.classList.remove('hidden'));
+    closeMobileSidebar?.addEventListener('click', () => mobileSidebar.classList.add('hidden'));
+
+    // Handle query param ?q=prompt to prefill (no auto-send)
+    (function handleQuery() {
+      try {
+        const p = new URLSearchParams(window.location.search).get('q');
+        if (p) {
+          const id = createConversation(p.slice(0,60));
+          setActive(id);
+          chatInput.value = p;
+        }
+      } catch (e) { /* ignore */ }
+    }());
+
+    // Initialize on load
+    window.addEventListener('load', () => {
+      // feather icons
+      if (window.feather) feather.replace();
+      // ensure we have at least one conv
+      if (!conversations.length) createConversation('Welcome');
+      // set first active if none
+      if (!activeId && conversations.length) activeId = conversations[0].id;
+      renderConversations();
+      renderMessages();
+      updateControls();
+    });
+  </script>
+</body>
+</html>
