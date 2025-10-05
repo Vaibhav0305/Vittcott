@@ -1,0 +1,14 @@
+# Unified requirements for both backend and Streamlit frontend
+fastapi
+uvicorn
+httpx
+yfinance
+pandas
+numpy
+pydantic
+python-dotenv
+google-generativeai
+
+# Streamlit frontend
+streamlit
+requests

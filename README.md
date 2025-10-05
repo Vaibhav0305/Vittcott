@@ -60,4 +60,27 @@ data/       # (Optional) Data files or datasets
 ## Contributing
 
 Pull requests and suggestions are welcome! Please see the `docs/` folder for more details.
+
+
+## Running the App with script.sh
+
+You can run both the Streamlit frontend and FastAPI backend automatically using the provided `script.sh`.
+
+**Steps:**
+
+1. Open a terminal and navigate to the root of the project.
+2. Make the script executable (only needed once):
+	```sh
+	chmod +x script.sh
+	```
+3. Run the script:
+	```sh
+	./script.sh
+	```
+4. **Wait for the script to finish executing.** It will:
+	- Set up virtual environments for both frontend and backend
+	- Install all required dependencies
+	- Start the Streamlit frontend and FastAPI backend automatically
+
+Once both are running, you can access the Streamlit app in your browser (usually at http://localhost:8501).
 cd backend && source venv/bin/activate && cd src && python3 main.py
