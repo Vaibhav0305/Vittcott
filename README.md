@@ -60,3 +60,4 @@ data/       # (Optional) Data files or datasets
 ## Contributing
 
 Pull requests and suggestions are welcome! Please see the `docs/` folder for more details.
+cd backend && source venv/bin/activate && cd src && python3 main.py
