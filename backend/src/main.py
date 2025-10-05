@@ -1,54 +1,46 @@
+
+
+
 import os
-from dotenv import load_dotenv
-import logging
-import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
 
+# Import centralized config
+from config import settings
+# Unified logging setup
+from config.logging_config import logger
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import httpx
 import yfinance as yf
 
+# Import AI controller
+from controllers.ai_controller import handle_ai_ask
+# Import Pydantic models
+from models.ai_models import AskRequest, AskResponse
 
-# ===============================
-# 🔑 Config and Constants
-# ===============================
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../../.env'))
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000")
-FINANCEHUB_API_KEY = os.getenv("FINANCEHUB_API_KEY")
-
-MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", 2000))
-AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", 20))
-MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 512))
-# ===============================
-
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("vittcott-backend")
 
 # ---------- Lifespan ----------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize Gemini model on startup."""
-    if not GEMINI_API_KEY:
+    if not settings.GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY not set")
+
+    try:
+        import google.generativeai as genai
+    except Exception:
+        genai = None
 
     if genai is None:
         raise RuntimeError("google-generativeai not installed. Run: pip install google-generativeai")
 
-    genai.configure(api_key=GEMINI_API_KEY)
+    genai.configure(api_key=settings.GEMINI_API_KEY)
 
     try:
-        try_model = "models/gemini-2.5-pro"
-        fallback_model = "models/gemini-pro-latest"
+        try_model = "models/gemini-2.5-flash"
+        fallback_model = "models/gemini-2.5-pro-latest"
         try:
             app.state.model = genai.GenerativeModel(try_model)
             logger.info(f"✅ Initialized Gemini model: {try_model}")
@@ -65,66 +57,34 @@ async def lifespan(app: FastAPI):
 # ---------- App ----------
 app = FastAPI(title="VITTCOTT Unified Backend", version="1.0", lifespan=lifespan)
 
-# ---------- CORS ----------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGINS, "*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# ---------- Models ----------
-class AskRequest(BaseModel):
-    query: str
-    portfolio: Optional[dict] = None
+## All config and constants are now loaded from config/settings.py
 
-class AskResponse(BaseModel):
-    response_text: str
+try:
+    import google.generativeai as genai
+except Exception:
+    genai = None
 
-# ---------- Root ----------
-@app.get("/")
-async def root():
-    return {"message": "Vittcott Backend Running ✅"}
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
-
-@app.get("/ready")
-async def ready():
-    return {"ready": hasattr(app.state, "model") and app.state.model is not None}
-
+# ---------- Lifespan ----------
 # ---------- AI Route ----------
 
 @app.post("/ai/ask", response_model=AskResponse)
 async def ai_ask(req: AskRequest, request: Request):
     """AI Assistant endpoint."""
-    if not req.query.strip():
-        raise HTTPException(status_code=400, detail="query must be non-empty")
-
-    query = req.query.strip()
-    if len(query) > MAX_PROMPT_CHARS:
-        query = query[:MAX_PROMPT_CHARS] + " ... (truncated)"
-        logger.warning("Truncated query to %d chars", MAX_PROMPT_CHARS)
-
-    prompt = f"""
-You are VITTCOTT AI Advisor — a friendly, beginner-focused investing assistant.
-User question: {query}
-Portfolio (JSON): {req.portfolio}
-Constraints:
-- Keep explanation simple and beginner-friendly.
-- Include short definitions for any finance terms used.
-- Provide up to 3 actionable next steps.
-- If more info is needed, ask 1-2 clarifying questions.
-"""
-
-    model = getattr(app.state, "model", None)
-    if model is None:
-        raise HTTPException(status_code=500, detail="AI model not initialized")
+    text = await handle_ai_ask(req.query, req.portfolio)
+    return {"response_text": text}
 
     try:
         loop = asyncio.get_running_loop()
+        
+        safety_settings = {
+            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
+            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
+            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
+            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
+        }
+
         response = await asyncio.wait_for(
             loop.run_in_executor(
                 None,
@@ -132,17 +92,41 @@ Constraints:
                     prompt,
                     generation_config={
                         "temperature": 0.2,
-                        "max_output_tokens": MAX_OUTPUT_TOKENS,
+                        "max_output_tokens": settings.MAX_OUTPUT_TOKENS,
                     },
+                    safety_settings=safety_settings,
                 ),
             ),
-            timeout=AI_TIMEOUT_SECONDS,
+            timeout=settings.AI_TIMEOUT_SECONDS,
         )
 
-        # ✅ PRINT RAW GEMINI RESPONSE
         print("\n===== RAW GEMINI RESPONSE START =====")
         print(response)
         print("===== RAW GEMINI RESPONSE END =====\n")
+
+        if not response.candidates:
+            if response.prompt_feedback and response.prompt_feedback.block_reason:
+                block_reason = response.prompt_feedback.block_reason
+                logger.warning(f"Prompt blocked due to: {block_reason}")
+                return {"response_text": f"⚠️ Your query was blocked by the safety filter: {block_reason}. Please rephrase your question."}
+            else:
+                logger.warning("No candidates returned from Gemini.")
+                return {"response_text": "⚠️ The AI model did not return a response. This might be due to a content filter or an internal error. Please try again."}
+
+        text = ""
+        try:
+            if response.candidates:
+                candidate = response.candidates[0]
+                if candidate.content and candidate.content.parts:
+                    text = "".join(part.text for part in candidate.content.parts if part.text)
+
+            if not text:
+                logger.warning("No text found in Gemini response. Finish reason: %s", candidate.finish_reason if 'candidate' in locals() else 'N/A')
+                text = "⚠️ The AI model returned an empty response. Please try again."
+
+        except (IndexError, AttributeError) as e:
+            logger.error(f"Error extracting text from response: {e}")
+            text = "⚠️ Could not read the Gemini response. The format was unexpected."
 
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="AI service timeout")
@@ -150,81 +134,15 @@ Constraints:
         logger.exception("Error calling Gemini: %s", e)
         raise HTTPException(status_code=502, detail="AI service error")
 
-    # ✅ Robust Parsing for Gemini API
-    text = None
-    try:
-        # 1️⃣ If `.text` exists and is valid
-        if hasattr(response, "text") and isinstance(response.text, str):
-            text = response.text.strip()
-
-        # 2️⃣ Check for structured response in candidates
-        elif hasattr(response, "candidates") and response.candidates:
-            for cand in response.candidates:
-                content = getattr(cand, "content", None)
-                if content and hasattr(content, "parts"):
-                    for part in content.parts:
-                        if hasattr(part, "text") and part.text:
-                            text = part.text.strip()
-                            break
-                if text:
-                    break
-
-        # 3️⃣ Attempt deeper access
-        if not text and hasattr(response, "candidates"):
-            try:
-                text = response.candidates[0].content.parts[0].text.strip()
-            except Exception:
-                pass
-
-        # 4️⃣ Final fallback
-        if not text or not isinstance(text, str):
-            text = str(response)
-
-    except Exception as e:
-        logger.warning(f"⚠️ Gemini parsing error: {e}")
-        text = f"⚠️ Could not read Gemini response ({e})"
-
-    # ✅ Ensure text is always valid
-    if not text or text.strip() == "":
-        text = "⚠️ Gemini returned no response. Try again later." \
-        "This can happen if your question was filtered or ambiguous.\n"
-        "Try rephrasing your query or asking something simpler (e.g. about stocks, ETFs, or finance basics)."
-
-    return {"response_text": text}
-
-    # ---------- Robust Response Extraction ----------
-    text = None
-    try:
-        # ✅ Handle both .text and candidate formats
-        if hasattr(response, "text") and isinstance(response.text, str):
-            text = response.text.strip()
-        elif hasattr(response, "candidates") and response.candidates:
-            for cand in response.candidates:
-                if hasattr(cand, "content") and hasattr(cand.content, "parts"):
-                    for part in cand.content.parts:
-                        if hasattr(part, "text"):
-                            text = part.text.strip()
-                            break
-                if text:
-                    break
-
-        if not text:
-            text = str(response)
-    except Exception as e:
-        text = f"⚠️ Could not parse Gemini response ({e})"
-
-    if not text or text.strip() == "":
-        text = "⚠️ No meaningful response received from Gemini."
-
     return {"response_text": text}
 
 # ---------- FinanceHub Proxy ----------
 @app.get("/api/finance/quote")
 async def finance_quote(symbol: str, range: str = "1d"):
     """Stock data via FinanceHub or fallback yfinance."""
-    if FINANCEHUB_API_KEY:
+    if settings.FINANCEHUB_API_KEY:
         url = f"https://api.financehub.example/v1/market/quotes?symbol={symbol}&range={range}"
-        headers = {"Authorization": f"Bearer {FINANCEHUB_API_KEY}"}
+        headers = {"Authorization": f"Bearer {settings.FINANCEHUB_API_KEY}"}
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(url, headers=headers, timeout=15)
@@ -268,9 +186,8 @@ def _start_uvicorn():
         logger.error("uvicorn not installed. Run: pip install uvicorn")
         raise
 
-    reload_flag = os.getenv("RELOAD", "false").lower() in ("1", "true", "yes")
     os.chdir(os.path.dirname(__file__))
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")), reload=reload_flag)
+    uvicorn.run(app, host="0.0.0.0", port=settings.PORT, reload=settings.RELOAD)
 
 if __name__ == "__main__":
     _start_uvicorn()

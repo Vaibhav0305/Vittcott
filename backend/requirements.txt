@@ -1,3 +1,10 @@
+fastapi
+google-generativeai
+httpx
+yfinance
+pydantic
+python-dotenv
+uvicorn
 
 # Web framework
 fastapi
