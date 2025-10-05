@@ -1,3 +1,11 @@
+# Backend .gitignore
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.sqlite3
+*.db
+*.log
 # --- Python ---
 __pycache__/
 *.pyc

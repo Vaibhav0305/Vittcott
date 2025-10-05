@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import logging
 import asyncio
 from contextlib import asynccontextmanager
@@ -10,16 +11,19 @@ from pydantic import BaseModel
 import httpx
 import yfinance as yf
 
+
 # ===============================
 # 🔑 Config and Constants
 # ===============================
-GEMINI_API_KEY = "AIzaSyAdXQlqtuDic-DeRmY0hGFd-472gJ2FjaA"
-FRONTEND_ORIGINS = "http://localhost:3000"
-FINANCEHUB_API_KEY = "d2ccu61r01qihtcr6m2gd2ccu61r01qihtcr6m30"
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../../.env'))
 
-MAX_PROMPT_CHARS = 2000
-AI_TIMEOUT_SECONDS = 20
-MAX_OUTPUT_TOKENS = 512
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+FRONTEND_ORIGINS = os.getenv("FRONTEND_ORIGINS", "http://localhost:3000")
+FINANCEHUB_API_KEY = os.getenv("FINANCEHUB_API_KEY")
+
+MAX_PROMPT_CHARS = int(os.getenv("MAX_PROMPT_CHARS", 2000))
+AI_TIMEOUT_SECONDS = int(os.getenv("AI_TIMEOUT_SECONDS", 20))
+MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 512))
 # ===============================
 
 try:

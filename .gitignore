@@ -1,3 +1,14 @@
+# Root .gitignore
+.env
+*.pyc
+__pycache__/
+.DS_Store
+.vscode/
+*.log
+*.sqlite3
+*.db
+node_modules/
+.env.*
 # Node
 node_modules/
 .env
