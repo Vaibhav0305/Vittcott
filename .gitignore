@@ -1,0 +1,16 @@
+# Node
+node_modules/
+.env
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+# Python venv
+venv/
+# Mac
+.DS_Store
+# VSCode
+.vscode/

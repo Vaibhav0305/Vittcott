@@ -1,0 +1,17 @@
+# Web framework
+fastapi
+uvicorn
+
+# HTTP requests (for FinanceHub proxy)
+httpx
+
+# Environment variables
+python-dotenv
+
+# AI model SDK
+google-generativeai
+
+# Finance data fallback
+yfinance
+pandas
+numpy

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VittCott — Create Account</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js" defer></script>
+</head>
+<body class="bg-gray-900 text-gray-100">
+  <nav class="bg-gray-800 p-3">
+    <div class="max-w-6xl mx-auto px-4 flex justify-between">
+      <a href="../../public/index.html" class="font-bold">VittCott</a>
+      <a href="../../public/index.html" class="text-indigo-400">Home</a>
+    </div>
+  </nav>
+
+  <main class="max-w-md mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-4">Create Account</h1>
+    <form id="signup-form" class="bg-gray-800 p-6 rounded grid gap-3">
+      <input id="name" class="px-3 py-2 rounded bg-gray-900 border" placeholder="Full name" required />
+      <input id="email" type="email" class="px-3 py-2 rounded bg-gray-900 border" placeholder="Email" required />
+      <input id="pass" type="password" class="px-3 py-2 rounded bg-gray-900 border" placeholder="Password" required />
+      <div class="flex justify-end gap-2">
+        <button type="submit" class="px-3 py-2 bg-indigo-600 rounded">Create Account</button>
+      </div>
+      <p class="text-xs text-gray-400 mt-2">Demo only. Connect to backend to persist accounts.</p>
+    </form>
+  </main>
+
+  <script src="../assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded',()=>{
+      if(window.feather) feather.replace();
+      document.getElementById('signup-form').addEventListener('submit',(e)=>{
+        e.preventDefault();
+        alert('Demo signup — hook this to your server-side signup endpoint.');
+        window.location.href = '../../public/index.html';
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VittCott — Stocks</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js" defer></script>
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body class="bg-gray-900 text-gray-100">
+  <nav class="bg-gray-800 p-3">
+    <div class="max-w-6xl mx-auto px-4 flex justify-between">
+      <a href="../../public/index.html" class="font-bold">VittCott</a>
+      <a href="../../public/index.html" class="text-indigo-400">Home</a>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-4">Stocks</h1>
+    <div id="stocks-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </main>
+
+  <script src="../assets/js/app.js"></script>
+  <script>
+    // simple client-side stocks demo
+    const stocks = [
+      {symbol:'RELI', name:'Reliance', price:'2350', change:1.2},
+      {symbol:'TCS', name:'TCS', price:'3200', change:-0.4},
+      {symbol:'INFY', name:'Infosys', price:'1400', change:0.9},
+      {symbol:'HDFC', name:'HDFC', price:'2600', change:0.1},
+      {symbol:'LT', name:'Larsen & Toubro', price:'2900', change:-0.6},
+    ];
+    const list = document.getElementById('stocks-list');
+    stocks.forEach(s=>{
+      const card = document.createElement('div');
+      card.className = 'bg-gray-800 p-4 rounded';
+      card.innerHTML = `<div class="flex justify-between items-center"><div><div class="font-semibold">${s.symbol}</div><div class="text-sm text-gray-400">${s.name}</div></div><div class="text-right"><div class="font-bold">₹${s.price}</div><div class="${s.change>=0?'text-green-400':'text-red-400'} text-sm">${s.change}%</div></div></div>`;
+      list.appendChild(card);
+    });
+    document.addEventListener('DOMContentLoaded',()=>{ if(window.feather) feather.replace(); });
+  </script>
+</body>
+</html>
