@@ -79,6 +79,26 @@ Questions / Next steps
 
 - Want me to push these changes to your GitHub remote now? I will attempt to push, but that may require your git credentials (the push will fail if the environment doesn't have auth). If you'd like, I can prepare the exact git commands for you to run locally or help configure a GitHub PAT for pushing from this environment.
 
+How to demo (PowerShell) — quick coordinated tail and demo
+
+1. Open two PowerShell windows side-by-side.
+
+2. In the first window, start the demo wrapper (this creates the venv if necessary, starts backend + frontend and opens the browser):
+
+```powershell
+cd E:\Vittcott_AI\Vitcott-AI
+.\scripts\demo_start.ps1
+```
+
+3. In the second window, tail both logs concurrently (split the view or use two tabs):
+
+```powershell
+Get-Content -Path .\logs\backend.log -Wait -Tail 200
+Get-Content -Path .\logs\streamlit.log -Wait -Tail 200
+```
+
+This lets you show the app UI while monitoring startup logs for the backend (Gemini initialization) and Streamlit.
+
 # Vittcott
 
 Vittcott is a full-stack experimental investing assistant platform, designed to help beginners learn about stocks, mutual funds, and personal finance with the help of AI.
