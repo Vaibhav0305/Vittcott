@@ -1,17 +1,31 @@
 # presign_app.py
-import os, time, uuid
+import os
+import time
+import uuid
+import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import boto3
+from botocore.config import Config
 
+# ---- CONFIG / LOGGING ----
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+# Force region defaults for the running process (important)
 AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
-BUCKET = os.getenv("S3_BUCKET", "vittcott-uploads-xyz123")   # ← replace if needed
-DDB_TABLE = os.getenv("DDB_TABLE", "user_files")  # optional
+os.environ.setdefault("AWS_DEFAULT_REGION", AWS_REGION)
 
-s3 = boto3.client("s3", region_name=AWS_REGION)
+BUCKET = os.getenv("S3_BUCKET", "vittcott-uploads-xyz123")
+DDB_TABLE = os.getenv("DDB_TABLE", "user_files")
+
+# Ensure SigV4 and explicit region
+boto_config = Config(region_name=AWS_REGION, signature_version="s3v4")
+s3 = boto3.client("s3", region_name=AWS_REGION, config=boto_config)
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 
+# ---- FASTAPI APP ----
 app = FastAPI()
 allowed_origins = [
     "http://localhost:8000",
@@ -50,7 +64,15 @@ def presign(req: PresignReq):
             ExpiresIn=3600
         )
     except Exception as e:
+        log.exception("Error generating presigned POST")
         raise HTTPException(status_code=500, detail=str(e))
+
+    # DEBUG: log the returned url and credential so you can inspect region in the signature
+    log.info("presign url: %s", presigned.get("url"))
+    # X-Amz-Credential may appear under keys like "X-Amz-Credential" or "x-amz-credential"
+    x_cred = presigned.get("fields", {}).get("X-Amz-Credential") \
+             or presigned.get("fields", {}).get("x-amz-credential")
+    log.info("presign X-Amz-Credential: %s", x_cred)
 
     return {"url": presigned["url"], "fields": presigned["fields"], "key": key}
 
@@ -77,7 +99,7 @@ def register(payload: dict):
         table = dynamodb.Table(DDB_TABLE)
         table.put_item(Item=item)
     except Exception as e:
-        print("DynamoDB write error (ignored in dev):", e)
+        log.warning("DynamoDB write error (ignored in dev): %s", e)
 
     # presigned GET for convenience
     try:
@@ -87,6 +109,24 @@ def register(payload: dict):
             ExpiresIn=3600
         )
     except Exception as e:
+        log.exception("Error generating download URL")
         raise HTTPException(status_code=500, detail=f"couldn't make download url: {e}")
 
     return {"ok": True, "download_url": download_url, "s3_key": s3_key}
+
+# ---- TEMP DEBUG ENDPOINT (safe: no secrets) ----
+@app.get("/_aws_debug")
+def aws_debug():
+    import boto3
+    sess = boto3.session.Session()
+    creds = sess.get_credentials()
+    cred_id_masked = None
+    if creds and creds.access_key:
+        ak = creds.access_key
+        cred_id_masked = ak[:4] + "..." + ak[-4:]
+    return {
+        "env_AWS_REGION": os.getenv("AWS_REGION"),
+        "env_AWS_DEFAULT_REGION": os.getenv("AWS_DEFAULT_REGION"),
+        "boto3_session_region": sess.region_name,
+        "aws_access_key_id_masked": cred_id_masked
+    }
