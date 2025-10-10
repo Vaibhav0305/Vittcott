@@ -23,13 +23,40 @@
           <a href="/pages/create-account.html">Create Account</a>
         </div>
       </div>
+
+      <!-- RIGHT SIDE: assistant / upload / login -->
       <div class="flex items-center gap-3">
-        <!-- header assistant button (opens modal) -->
         <button id="open-ai-btn" class="px-3 py-2 bg-indigo-600 rounded">Assistant</button>
+
+        <!-- Upload Portfolio button -->
+        <button id="open-upload-btn" class="px-3 py-2 bg-green-600 rounded flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v6M8 8l4-4 4 4" /></svg>
+          Upload Portfolio
+        </button>
+
         <a href="/pages/create-account.html" class="px-3 py-2 bg-indigo-500 rounded">Login / Signup</a>
       </div>
     </div>
   </nav>
+
+  <!-- Upload widget (hidden by default) -->
+  <div id="upload-widget" class="fixed right-6 bottom-24 z-50 w-80 bg-gray-800 border border-gray-700 rounded-lg p-4 shadow-2xl hidden">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold text-indigo-100">Upload Portfolio</h3>
+      <button id="close-upload" class="text-gray-400 hover:text-gray-200">✕</button>
+    </div>
+
+    <input id="uc-username" placeholder="username" class="w-full px-3 py-2 mb-2 rounded bg-gray-900 border border-gray-700 text-gray-100" value="testuser" />
+    <input id="uc-file" type="file" accept=".xlsx,.xls" class="w-full mb-3 text-gray-100" />
+
+    <div class="flex gap-2">
+      <button id="uc-uploadBtn" class="flex-1 px-3 py-2 bg-green-500 hover:bg-green-600 rounded text-white">Upload</button>
+      <button id="uc-clearBtn" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-200">Clear</button>
+    </div>
+
+    <progress id="uc-progress" value="0" max="100" class="w-full mt-3 hidden"></progress>
+    <div id="uc-status" class="text-sm text-gray-300 mt-2 break-words"></div>
+  </div>
 
   <!-- Hero -->
   <header class="gradient-bg py-12">
@@ -39,7 +66,6 @@
         <p class="mt-4 text-indigo-100">VittCott makes investing simple, accessible and student friendly.</p>
         <div class="mt-6 flex gap-3">
           <a href="/pages/create-account.html" class="px-5 py-3 bg-white text-indigo-600 rounded font-semibold">Get Started</a>
-          
         </div>
 
         <div class="mt-6 grid grid-cols-2 gap-2">
@@ -145,44 +171,26 @@
   <!-- Floating assistant button -->
   <button id="float-open" class="fixed right-6 bottom-6 z-50 px-4 py-3 bg-indigo-600 rounded-full shadow-lg">Assistant</button>
 
-  <!-- Assistant modal / iframe (hidden until opened) -->
-  <!-- Change ASSISTANT_URL below to: '/assistant/' or 'https://assistant.example.com' or 'http://127.0.0.1:8501' as needed -->
-    <!-- Assistant now opens in a full browser tab at ASSISTANT_URL -->
-
   <!-- Shared scripts -->
   <script>
     // CONFIG: change this to the correct URL for your setup:
-    // - local dev Streamlit: 'http://127.0.0.1:8501'
-    // - reverse-proxied path: '/assistant/'
-    // - production subdomain: 'https://assistant.example.com'
-    // For local development point to the Streamlit app
     const ASSISTANT_URL = 'http://127.0.0.1:8501';
 
     // Elements
     const openHeaderBtn = document.getElementById('open-ai-btn');
     const floatOpenBtn = document.getElementById('float-open');
 
-    // Open the assistant in a full browser tab (with optional prompt query param)
     function openAssistant(promptText = '') {
       let url = ASSISTANT_URL;
       if (promptText) {
         const sep = url.includes('?') ? '&' : '?';
         url = url + sep + 'prompt=' + encodeURIComponent(promptText);
       }
-      // open in new tab to avoid iframe embedding issues
       window.open(url, '_blank');
     }
-
-    // convenience: open and inject a prompt
-    function openAssistantWithPrompt(promptText='') {
-      openAssistant(promptText);
-    }
-
-    // wire UI: header and floating buttons open the assistant in a new tab
+    function openAssistantWithPrompt(promptText='') { openAssistant(promptText); }
     if (openHeaderBtn) openHeaderBtn.addEventListener('click', () => openAssistant());
     if (floatOpenBtn) floatOpenBtn.addEventListener('click', () => openAssistant());
-
-    // init feather + AOS + year text after DOMContentLoaded
     document.addEventListener('DOMContentLoaded', () => {
       if (window.feather) feather.replace();
       if (window.AOS) AOS.init({duration:700});
@@ -192,27 +200,100 @@
 
   <script src="/assets/js/app.js"></script>
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+  <!-- Upload widget script (placed at end so DOM is ready) -->
+  <script>
+    /* CONFIG: set the backend endpoints (full URL if backend runs on different host) */
+    const PRESIGN_ENDPOINT = 'http://127.0.0.1:8000/presign';
+    const REGISTER_ENDPOINT = 'http://127.0.0.1:8000/register';
+
+    const openUploadBtn = document.getElementById('open-upload-btn');
+    const uploadWidget = document.getElementById('upload-widget');
+    const closeUpload = document.getElementById('close-upload');
+    const uploadBtn = document.getElementById('uc-uploadBtn');
+    const clearBtn = document.getElementById('uc-clearBtn');
+    const fileInput = document.getElementById('uc-file');
+    const usernameInput = document.getElementById('uc-username');
+    const progressEl = document.getElementById('uc-progress');
+    const statusEl = document.getElementById('uc-status');
+
+    openUploadBtn.addEventListener('click', () => {
+      uploadWidget.classList.remove('hidden');
+    });
+    closeUpload.addEventListener('click', () => {
+      uploadWidget.classList.add('hidden');
+    });
+
+    clearBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      statusEl.textContent = '';
+      progressEl.classList.add('hidden');
+      progressEl.value = 0;
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      const username = usernameInput.value.trim();
+      if (!username) { alert('Enter username'); return; }
+      if (!fileInput.files.length) { alert('Choose an Excel file'); return; }
+      const file = fileInput.files[0];
+
+      statusEl.textContent = 'Requesting upload token...';
+      // 1) Request presigned POST
+      const presignResp = await fetch(PRESIGN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          content_type: file.type || 'application/octet-stream',
+          username: username
+        })
+      });
+
+      if (!presignResp.ok) {
+        const text = await presignResp.text();
+        statusEl.textContent = 'Presign error: ' + text;
+        return;
+      }
+      const presign = await presignResp.json();
+
+      // 2) Upload to S3 with progress
+      statusEl.textContent = 'Uploading to S3...';
+      const formData = new FormData();
+      Object.entries(presign.fields).forEach(([k,v]) => formData.append(k,v));
+      formData.append('file', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', presign.url, true);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          progressEl.classList.remove('hidden');
+          progressEl.value = (e.loaded / e.total) * 100;
+        }
+      };
+      xhr.onload = async () => {
+        if (xhr.status === 204 || xhr.status === 201 || xhr.status === 200) {
+          statusEl.textContent = 'Upload succeeded. Registering...';
+          const reg = await fetch(REGISTER_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username, s3_key: presign.key, filename: file.name, size: file.size })
+          });
+          if (!reg.ok) {
+            statusEl.textContent = 'Register failed: ' + await reg.text();
+            return;
+          }
+          const j = await reg.json();
+          statusEl.innerHTML = 'Done. <a class="text-green-400 underline" href="' + j.download_url + '" target="_blank">Open uploaded file (1 hour)</a>';
+        } else {
+          statusEl.textContent = 'S3 upload failed: ' + xhr.status + ' ' + xhr.responseText;
+        }
+      };
+      xhr.onerror = () => {
+        statusEl.textContent = 'Upload request error';
+      };
+      xhr.send(formData);
+    });
+  </script>
+
 </body>
 </html>
-
-
-<!-- Add this next to your other header buttons (Upload Portfolio) -->
-<button id="open-upload-btn" class="px-3 py-2 bg-green-600 rounded">Upload Portfolio</button>
-
-<!-- Upload widget (hidden by default) -->
-<div id="upload-widget" style="display:none; position:fixed; right:20px; bottom:90px; z-index:60; background:rgba(17,24,39,0.95); padding:18px; border-radius:10px; width:320px; box-shadow:0 10px 30px rgba(0,0,0,0.6);">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-    <strong style="color:#E6EEF8">Upload Portfolio</strong>
-    <button id="close-upload" style="background:transparent; color:#cbd5e1; border:none; font-size:16px;">✕</button>
-  </div>
-
-  <input id="uc-username" placeholder="username" style="width:100%; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #374151; background:#0f1724; color:#e5e7eb" value="testuser" />
-  <input id="uc-file" type="file" accept=".xlsx,.xls" style="width:100%; margin-bottom:8px; color:#e5e7eb" />
-  <div style="display:flex; gap:8px;">
-    <button id="uc-uploadBtn" style="flex:1; padding:8px; background:#10B981; color:white; border-radius:6px; border:none;">Upload</button>
-    <button id="uc-clearBtn" style="padding:8px; background:#374151; color:#e5e7eb; border-radius:6px; border:none;">Clear</button>
-  </div>
-
-  <progress id="uc-progress" value="0" max="100" style="width:100%; margin-top:8px; display:none"></progress>
-  <div id="uc-status" style="color:#cbd5e1; margin-top:8px; font-size:13px;"></div>
-</div>

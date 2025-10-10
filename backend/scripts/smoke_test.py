@@ -61,7 +61,7 @@ def main():
     backend_url = os.getenv("VITTCOTT_BACKEND_URL", "http://localhost:8000").rstrip("/")
     print(f"Using backend: {backend_url}")
 
-    ai_url = f"{backend_url}/ai/ask"
+    ai_url = f"{backend_url}/api/ai/ask"
     finance_url = f"{backend_url}/api/finance/quote"
 
     ok = True

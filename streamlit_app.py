@@ -109,7 +109,7 @@ with tab1:
         with st.spinner("Thinking..."):
             try:
                 resp = requests.post(
-                    f"{BACKEND_URL}/ai/ask",
+                    f"{BACKEND_URL}/api/ai/ask",
                     json={"query": user_input, "portfolio": portfolio_dict},
                     timeout=30
                 )

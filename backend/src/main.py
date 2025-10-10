@@ -1,25 +1,23 @@
-
-
-
 import os
+import time
+import uuid
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
-
-# Import centralized config
-from config import settings
-# Unified logging setup
-from config.logging_config import logger
-
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import yfinance as yf
+import boto3
+from pydantic import BaseModel
 
-# Import AI controller
+# Internal imports
+from config import settings
+from config.logging_config import logger
 from controllers.ai_controller import handle_ai_ask
-# Import Pydantic models
 from models.ai_models import AskRequest, AskResponse
-
 
 # ---------- Lifespan ----------
 @asynccontextmanager
@@ -54,87 +52,38 @@ async def lifespan(app: FastAPI):
             del app.state.model
             logger.info("🧹 Cleaned up Gemini model")
 
+
 # ---------- App ----------
 app = FastAPI(title="VITTCOTT Unified Backend", version="1.0", lifespan=lifespan)
 
+# ---------- CORS ----------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # for local frontend dev
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-## All config and constants are now loaded from config/settings.py
-
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
+# ---------- Root Route ----------
+@app.get("/api")
+def read_root():
+    return {"message": "Welcome to VittCott Backend!"}
 
 
-# ---------- Lifespan ----------
 # ---------- AI Route ----------
-
-@app.post("/ai/ask", response_model=AskResponse)
+@app.post("/api/ai/ask", response_model=AskResponse)
 async def ai_ask(req: AskRequest, request: Request):
     """AI Assistant endpoint."""
     text = await handle_ai_ask(req.query, req.portfolio)
     return {"response_text": text}
 
-    try:
-        loop = asyncio.get_running_loop()
-        
-        safety_settings = {
-            'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-            'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-            'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
-        }
-
-        response = await asyncio.wait_for(
-            loop.run_in_executor(
-                None,
-                lambda: model.generate_content(
-                    prompt,
-                    generation_config={
-                        "temperature": 0.2,
-                        "max_output_tokens": settings.MAX_OUTPUT_TOKENS,
-                    },
-                    safety_settings=safety_settings,
-                ),
-            ),
-            timeout=settings.AI_TIMEOUT_SECONDS,
-        )
-
-        print("\n===== RAW GEMINI RESPONSE START =====")
-        print(response)
-        print("===== RAW GEMINI RESPONSE END =====\n")
-
-        if not response.candidates:
-            if response.prompt_feedback and response.prompt_feedback.block_reason:
-                block_reason = response.prompt_feedback.block_reason
-                logger.warning(f"Prompt blocked due to: {block_reason}")
-                return {"response_text": f"⚠️ Your query was blocked by the safety filter: {block_reason}. Please rephrase your question."}
-            else:
-                logger.warning("No candidates returned from Gemini.")
-                return {"response_text": "⚠️ The AI model did not return a response. This might be due to a content filter or an internal error. Please try again."}
-
-        text = ""
-        try:
-            if response.candidates:
-                candidate = response.candidates[0]
-                if candidate.content and candidate.content.parts:
-                    text = "".join(part.text for part in candidate.content.parts if part.text)
-
-            if not text:
-                logger.warning("No text found in Gemini response. Finish reason: %s", candidate.finish_reason if 'candidate' in locals() else 'N/A')
-                text = "⚠️ The AI model returned an empty response. Please try again."
-
-        except (IndexError, AttributeError) as e:
-            logger.error(f"Error extracting text from response: {e}")
-            text = "⚠️ Could not read the Gemini response. The format was unexpected."
-
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="AI service timeout")
-    except Exception as e:
-        logger.exception("Error calling Gemini: %s", e)
-        raise HTTPException(status_code=502, detail="AI service error")
-
-    return {"response_text": text}
 
 # ---------- FinanceHub Proxy ----------
 @app.get("/api/finance/quote")
@@ -178,6 +127,94 @@ async def finance_quote(symbol: str, range: str = "1d"):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Stock data error: {e}")
 
+
+# ---------- Presign / Upload helpers (copied from presign_app.py) ----------
+# S3 / Dynamo configuration (can be overridden with env vars)
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+BUCKET = os.getenv("S3_BUCKET", "vittcott-uploads-xyz123")
+DDB_TABLE = os.getenv("DDB_TABLE", "user_files")
+
+# boto3 clients
+s3 = boto3.client("s3", region_name=AWS_REGION)
+
+
+class PresignReq(BaseModel):
+    filename: str
+    content_type: str
+    username: str
+
+
+@app.post("/presign")
+def presign(req: PresignReq):
+    key = f"users/{req.username}/{int(time.time())}_{uuid.uuid4().hex}_{req.filename}"
+    # limit file size to 10 MB — change if you want
+    conditions = [["content-length-range", 0, 10 * 1024 * 1024], {"Content-Type": req.content_type}]
+    fields = {"Content-Type": req.content_type}
+    try:
+        presigned = s3.generate_presigned_post(
+            Bucket=BUCKET, Key=key, Fields=fields, Conditions=conditions, ExpiresIn=3600
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"url": presigned["url"], "fields": presigned["fields"], "key": key}
+
+
+@app.post("/register")
+def register(payload: dict):
+    try:
+        username = payload["username"]
+        s3_key = payload["s3_key"]
+        filename = payload.get("filename", "")
+        size = int(payload.get("size", 0))
+    except Exception:
+        raise HTTPException(status_code=400, detail="missing fields")
+
+    item = {
+        "username": username,
+        "uploaded_at": int(time.time()),
+        "s3_key": s3_key,
+        "filename": filename,
+        "size": size,
+    }
+
+    # write to DynamoDB if table available (safe to skip in dev)
+    try:
+        dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+        table = dynamodb.Table(DDB_TABLE)
+        table.put_item(Item=item)
+    except Exception as e:
+        logger.warning("DynamoDB write error (ignored in dev): %s", e)
+
+    # presigned GET for convenience
+    try:
+        download_url = s3.generate_presigned_url(
+            "get_object", Params={"Bucket": BUCKET, "Key": s3_key}, ExpiresIn=3600
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"couldn't make download url: {e}")
+
+    return {"ok": True, "download_url": download_url, "s3_key": s3_key}
+
+# ---------- Static Frontend Mount ----------
+# Copy your frontend files into backend/src/frontend_build (public + src/pages)
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "frontend_build")
+
+if not os.path.isdir(STATIC_DIR):
+    print(f"[⚠️] Static directory not found: {STATIC_DIR}. Run your copy script or move frontend/public here.")
+
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
+
+# Optional SPA fallback (for routing in frontend)
+@app.exception_handler(404)
+async def spa_fallback(request: Request, exc):
+    accept = request.headers.get("accept", "")
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if "text/html" in accept and os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+
 # ---------- Run ----------
 def _start_uvicorn():
     try:
@@ -188,6 +225,7 @@ def _start_uvicorn():
 
     os.chdir(os.path.dirname(__file__))
     uvicorn.run(app, host="0.0.0.0", port=settings.PORT, reload=settings.RELOAD)
+
 
 if __name__ == "__main__":
     _start_uvicorn()
