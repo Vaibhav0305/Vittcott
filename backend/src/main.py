@@ -132,45 +132,65 @@ async def finance_quote(symbol: str, range: str = "1d"):
 
 
 # ---------- Presign / Upload helpers (copied from presign_app.py) ----------
-# S3 / Dynamo configuration (can be overridden with env vars)
-AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+# ---------- Presign / Upload helpers ----------
+import boto3
+from botocore.config import Config as BotocoreConfig
+
+# ✅ Force AWS region to ap-south-1 everywhere
+AWS_REGION = "ap-south-1"
 BUCKET = os.getenv("S3_BUCKET", "vittcott-uploads-xyz123")
 DDB_TABLE = os.getenv("DDB_TABLE", "user_files")
 
-# Force the AWS default region for the running process to avoid picking up
-# a different region from the AWS CLI/profile (which can cause the
-# presigned credential to be generated for the wrong region).
+# Override every possible region source
+os.environ["AWS_REGION"] = AWS_REGION
 os.environ["AWS_DEFAULT_REGION"] = AWS_REGION
+boto3.setup_default_session(region_name=AWS_REGION)
 
-# Use an explicit boto3 Session configured for the desired region and
-# ensure signature v4 (S3 presigned POSTs require sigv4 in many regions).
-from botocore.config import Config as BotocoreConfig
-boto_config = BotocoreConfig(region_name=AWS_REGION, signature_version="s3v4")
+# ✅ Create a *fresh* session (not cached)
 session = boto3.session.Session(region_name=AWS_REGION)
-s3 = session.client("s3", region_name=AWS_REGION, config=boto_config)
 
+# ✅ Explicit config to ensure signature v4
+boto_config = BotocoreConfig(
+    region_name=AWS_REGION,
+    signature_version="s3v4"
+)
 
+# ✅ Instantiate new S3 client (freshly bound to ap-south-1)
+s3 = session.client("s3", config=boto_config)
+
+print(f"[DEBUG] Using region: {AWS_REGION}")
+print(f"[DEBUG] boto3 session region: {session.region_name}")
 
 class PresignReq(BaseModel):
     filename: str
     content_type: str
     username: str
 
-
 @app.post("/presign")
 def presign(req: PresignReq):
     key = f"users/{req.username}/{int(time.time())}_{uuid.uuid4().hex}_{req.filename}"
-    # limit file size to 10 MB — change if you want
-    conditions = [["content-length-range", 0, 10 * 1024 * 1024], {"Content-Type": req.content_type}]
+    conditions = [
+        ["content-length-range", 0, 10 * 1024 * 1024],
+        {"Content-Type": req.content_type}
+    ]
     fields = {"Content-Type": req.content_type}
+
     try:
         presigned = s3.generate_presigned_post(
-            Bucket=BUCKET, Key=key, Fields=fields, Conditions=conditions, ExpiresIn=3600
+            Bucket=BUCKET,
+            Key=key,
+            Fields=fields,
+            Conditions=conditions,
+            ExpiresIn=3600
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {"url": presigned["url"], "fields": presigned["fields"], "key": key}
+    return {
+        "url": presigned["url"],
+        "fields": presigned["fields"],
+        "key": key
+    }
 
 
 @app.post("/register")
