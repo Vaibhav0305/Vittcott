@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js" defer></script>
-  <link rel="stylesheet" href="../src/assets/css/styles.css">
+  <link rel="stylesheet" href="/assets/css/styles.css">
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans">
   <!-- Header -->
@@ -18,14 +18,15 @@
         <a href="index.html" class="text-xl font-bold">VittCott</a>
         <div class="hidden sm:flex gap-4 ml-6 text-gray-300">
           <a href="index.html">Home</a>
-          <a href="../src/pages/stocks.html">Stocks</a>
-          <a href="../src/pages/mutual-funds.html">MF</a>
-          <a href="../src/pages/create-account.html">Create Account</a>
+          <a href="/pages/stocks.html">Stocks</a>
+          <a href="/pages/mutual-funds.html">MF</a>
+          <a href="/pages/create-account.html">Create Account</a>
         </div>
       </div>
       <div class="flex items-center gap-3">
+        <!-- header assistant button (opens modal) -->
         <button id="open-ai-btn" class="px-3 py-2 bg-indigo-600 rounded">Assistant</button>
-        <a href="../src/pages/create-account.html" class="px-3 py-2 bg-indigo-500 rounded">Login / Signup</a>
+        <a href="/pages/create-account.html" class="px-3 py-2 bg-indigo-500 rounded">Login / Signup</a>
       </div>
     </div>
   </nav>
@@ -37,8 +38,8 @@
         <h1 class="text-4xl sm:text-5xl font-extrabold">Invest in your future with confidence</h1>
         <p class="mt-4 text-indigo-100">VittCott makes investing simple, accessible and student friendly.</p>
         <div class="mt-6 flex gap-3">
-          <a href="../src/pages/create-account.html" class="px-5 py-3 bg-white text-indigo-600 rounded font-semibold">Get Started</a>
-          <a href="../src/pages/ai-assistant.html" class="px-5 py-3 border border-white rounded">Open Assistant</a>
+          <a href="/pages/create-account.html" class="px-5 py-3 bg-white text-indigo-600 rounded font-semibold">Get Started</a>
+          
         </div>
 
         <div class="mt-6 grid grid-cols-2 gap-2">
@@ -47,7 +48,7 @@
         </div>
       </div>
       <div>
-        <img src="../src/assets/images/hero-placeholder.jpg" alt="Hero" class="rounded shadow-lg w-full object-cover">
+        <img src="/assets/images/hero-placeholder.jpg" alt="Hero" class="rounded shadow-lg w-full object-cover">
       </div>
     </div>
   </header>
@@ -99,7 +100,7 @@
         <div class="bg-gray-700 p-4 rounded"><strong>INFY</strong><div class="text-sm text-gray-400">Infosys — ₹1400</div></div>
         <div class="bg-gray-700 p-4 rounded"><strong>HDFC</strong><div class="text-sm text-gray-400">HDFC — ₹2600</div></div>
       </div>
-      <div class="mt-4"><a href="../src/pages/stocks.html" class="text-indigo-400">View all stocks →</a></div>
+      <div class="mt-4"><a href="/pages/stocks.html" class="text-indigo-400">View all stocks →</a></div>
     </div>
   </section>
 
@@ -111,7 +112,7 @@
         <p class="text-gray-400">Join VittCott and use the assistant to plan your investments.</p>
       </div>
       <div class="text-right">
-        <a href="../src/pages/create-account.html" class="px-4 py-2 bg-indigo-600 rounded">Create Free Account</a>
+        <a href="/pages/create-account.html" class="px-4 py-2 bg-indigo-600 rounded">Create Free Account</a>
       </div>
     </div>
   </section>
@@ -122,7 +123,7 @@
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div>
           <h4 class="font-semibold text-gray-400">Products</h4>
-          <ul class="mt-2 space-y-2"><li><a href="../src/pages/stocks.html">Stocks</a></li><li><a href="../src/pages/mutual-funds.html">Mutual Funds</a></li></ul>
+          <ul class="mt-2 space-y-2"><li><a href="/pages/stocks.html">Stocks</a></li><li><a href="/pages/mutual-funds.html">Mutual Funds</a></li></ul>
         </div>
         <div>
           <h4 class="font-semibold text-gray-400">Company</h4>
@@ -144,9 +145,74 @@
   <!-- Floating assistant button -->
   <button id="float-open" class="fixed right-6 bottom-6 z-50 px-4 py-3 bg-indigo-600 rounded-full shadow-lg">Assistant</button>
 
+  <!-- Assistant modal / iframe (hidden until opened) -->
+  <!-- Change ASSISTANT_URL below to: '/assistant/' or 'https://assistant.example.com' or 'http://127.0.0.1:8501' as needed -->
+    <!-- Assistant now opens in a full browser tab at ASSISTANT_URL -->
+
   <!-- Shared scripts -->
-  <script src="../src/assets/js/app.js"></script>
+  <script>
+    // CONFIG: change this to the correct URL for your setup:
+    // - local dev Streamlit: 'http://127.0.0.1:8501'
+    // - reverse-proxied path: '/assistant/'
+    // - production subdomain: 'https://assistant.example.com'
+    // For local development point to the Streamlit app
+    const ASSISTANT_URL = 'http://127.0.0.1:8501';
+
+    // Elements
+    const openHeaderBtn = document.getElementById('open-ai-btn');
+    const floatOpenBtn = document.getElementById('float-open');
+
+    // Open the assistant in a full browser tab (with optional prompt query param)
+    function openAssistant(promptText = '') {
+      let url = ASSISTANT_URL;
+      if (promptText) {
+        const sep = url.includes('?') ? '&' : '?';
+        url = url + sep + 'prompt=' + encodeURIComponent(promptText);
+      }
+      // open in new tab to avoid iframe embedding issues
+      window.open(url, '_blank');
+    }
+
+    // convenience: open and inject a prompt
+    function openAssistantWithPrompt(promptText='') {
+      openAssistant(promptText);
+    }
+
+    // wire UI: header and floating buttons open the assistant in a new tab
+    if (openHeaderBtn) openHeaderBtn.addEventListener('click', () => openAssistant());
+    if (floatOpenBtn) floatOpenBtn.addEventListener('click', () => openAssistant());
+
+    // init feather + AOS + year text after DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.feather) feather.replace();
+      if (window.AOS) AOS.init({duration:700});
+      document.getElementById('year').textContent = new Date().getFullYear();
+    });
+  </script>
+
+  <script src="/assets/js/app.js"></script>
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-  <script>document.addEventListener('DOMContentLoaded',()=>{ if(window.feather) feather.replace(); if(window.AOS) AOS.init({duration:700}); document.getElementById('year').textContent = new Date().getFullYear(); });</script>
 </body>
 </html>
+
+
+<!-- Add this next to your other header buttons (Upload Portfolio) -->
+<button id="open-upload-btn" class="px-3 py-2 bg-green-600 rounded">Upload Portfolio</button>
+
+<!-- Upload widget (hidden by default) -->
+<div id="upload-widget" style="display:none; position:fixed; right:20px; bottom:90px; z-index:60; background:rgba(17,24,39,0.95); padding:18px; border-radius:10px; width:320px; box-shadow:0 10px 30px rgba(0,0,0,0.6);">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <strong style="color:#E6EEF8">Upload Portfolio</strong>
+    <button id="close-upload" style="background:transparent; color:#cbd5e1; border:none; font-size:16px;">✕</button>
+  </div>
+
+  <input id="uc-username" placeholder="username" style="width:100%; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #374151; background:#0f1724; color:#e5e7eb" value="testuser" />
+  <input id="uc-file" type="file" accept=".xlsx,.xls" style="width:100%; margin-bottom:8px; color:#e5e7eb" />
+  <div style="display:flex; gap:8px;">
+    <button id="uc-uploadBtn" style="flex:1; padding:8px; background:#10B981; color:white; border-radius:6px; border:none;">Upload</button>
+    <button id="uc-clearBtn" style="padding:8px; background:#374151; color:#e5e7eb; border-radius:6px; border:none;">Clear</button>
+  </div>
+
+  <progress id="uc-progress" value="0" max="100" style="width:100%; margin-top:8px; display:none"></progress>
+  <div id="uc-status" style="color:#cbd5e1; margin-top:8px; font-size:13px;"></div>
+</div>

@@ -12,3 +12,5 @@ google-generativeai
 # Streamlit frontend
 streamlit
 requests
+boto3
+python-multipart
