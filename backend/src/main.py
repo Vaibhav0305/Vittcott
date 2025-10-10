@@ -137,8 +137,18 @@ AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 BUCKET = os.getenv("S3_BUCKET", "vittcott-uploads-xyz123")
 DDB_TABLE = os.getenv("DDB_TABLE", "user_files")
 
-# boto3 clients
-s3 = boto3.client("s3", region_name=AWS_REGION)
+# Force the AWS default region for the running process to avoid picking up
+# a different region from the AWS CLI/profile (which can cause the
+# presigned credential to be generated for the wrong region).
+os.environ["AWS_DEFAULT_REGION"] = AWS_REGION
+
+# Use an explicit boto3 Session configured for the desired region and
+# ensure signature v4 (S3 presigned POSTs require sigv4 in many regions).
+from botocore.config import Config as BotocoreConfig
+boto_config = BotocoreConfig(region_name=AWS_REGION, signature_version="s3v4")
+session = boto3.session.Session(region_name=AWS_REGION)
+s3 = session.client("s3", region_name=AWS_REGION, config=boto_config)
+
 
 
 class PresignReq(BaseModel):

@@ -15,15 +15,22 @@ log = logging.getLogger(__name__)
 
 # Force region defaults for the running process (important)
 AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
-os.environ.setdefault("AWS_DEFAULT_REGION", AWS_REGION)
+# Always force the AWS default region for the running process so boto3
+# won't pick up a different region from the environment/CLI config.
+os.environ["AWS_DEFAULT_REGION"] = AWS_REGION
 
 BUCKET = os.getenv("S3_BUCKET", "vittcott-uploads-xyz123")
 DDB_TABLE = os.getenv("DDB_TABLE", "user_files")
 
 # Ensure SigV4 and explicit region
 boto_config = Config(region_name=AWS_REGION, signature_version="s3v4")
-s3 = boto3.client("s3", region_name=AWS_REGION, config=boto_config)
-dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+# Use an explicit boto3 Session tied to the configured region. This ensures
+# the presigned credentials and URL are generated for the intended region
+# even if other environment variables or AWS config files contain a
+# different default region.
+session = boto3.session.Session(region_name=AWS_REGION)
+s3 = session.client("s3", region_name=AWS_REGION, config=boto_config)
+dynamodb = session.resource("dynamodb", region_name=AWS_REGION)
 
 # ---- FASTAPI APP ----
 app = FastAPI()
