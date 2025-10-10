@@ -216,6 +216,22 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "frontend_build")
 if not os.path.isdir(STATIC_DIR):
     print(f"[⚠️] Static directory not found: {STATIC_DIR}. Run your copy script or move frontend/public here.")
 
+# Serve explicit asset and pages folders first to avoid ambiguous routing and ensure
+# CSS/JS/images are always served at /assets/* and pages at /pages/*.
+assets_dir = os.path.join(STATIC_DIR, "assets")
+pages_dir = os.path.join(STATIC_DIR, "pages")
+
+if os.path.isdir(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+else:
+    logger.warning("Static assets directory not found: %s", assets_dir)
+
+if os.path.isdir(pages_dir):
+    app.mount("/pages", StaticFiles(directory=pages_dir), name="pages")
+else:
+    logger.warning("Static pages directory not found: %s", pages_dir)
+
+# Fallback: mount the full frontend (serves index.html for SPA routes)
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
 
 # Optional SPA fallback (for routing in frontend)
