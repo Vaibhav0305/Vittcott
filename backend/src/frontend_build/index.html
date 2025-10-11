@@ -26,15 +26,27 @@
 
       <!-- RIGHT SIDE: assistant / upload / login -->
       <div class="flex items-center gap-3">
-        <button id="open-ai-btn" class="px-3 py-2 bg-indigo-600 rounded">Assistant</button>
-
-        <!-- Upload Portfolio button -->
-        <button id="open-upload-btn" class="px-3 py-2 bg-green-600 rounded flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v6M8 8l4-4 4 4" /></svg>
-          Upload Portfolio
+        <!-- Improved Assistant button -->
+        <button id="open-ai-btn" class="flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-600 hover:bg-indigo-500 shadow-md transform hover:-translate-y-0.5 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 14h.01M16 10h.01M12 6v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="text-sm font-medium text-white">Assistant</span>
         </button>
 
-        <a href="/pages/create-account.html" class="px-3 py-2 bg-indigo-500 rounded">Login / Signup</a>
+        <!-- Improved Upload Portfolio button -->
+        <button id="open-upload-btn" class="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-500 shadow-md transform hover:-translate-y-0.5 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v6M8 8l4-4 4 4" /></svg>
+          <span class="text-sm font-medium text-white">Upload Portfolio</span>
+        </button>
+
+        <!-- Improved Signup & Login links (styled as buttons) -->
+        <a href="/pages/create-account.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white shadow-sm border border-indigo-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+          <span class="text-sm font-medium">Signup</span>
+        </a>
+        <a href="/pages/login.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white shadow-sm border border-indigo-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white opacity-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" /><path stroke-linecap="round" stroke-linejoin="round" d="M10 17l5-5-5-5" /></svg>
+          <span class="text-sm font-medium">Login</span>
+        </a>
       </div>
     </div>
   </nav>
@@ -294,6 +306,75 @@
       xhr.send(formData);
     });
   </script>
+
+  <!-- Add this script just before the closing </body> -->
+  <script>
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const user = localStorage.getItem('vittcott_user');
+    if (!user) return;
+
+    const signupA = document.querySelector('a[href="/pages/create-account.html"]');
+    const loginA = document.querySelector('a[href="/pages/login.html"]');
+
+    // Create a polished welcome badge
+    const welcomeWrap = document.createElement('div');
+    welcomeWrap.className =
+      'flex items-center gap-3 bg-gray-700/60 px-3 py-1.5 rounded-full shadow-sm backdrop-blur-sm border border-gray-600';
+    welcomeWrap.style.transition = 'transform 260ms ease, opacity 260ms ease';
+    welcomeWrap.style.transform = 'translateY(-6px)';
+    welcomeWrap.style.opacity = '0';
+
+    const welcomeText = document.createElement('span');
+    welcomeText.className = 'text-sm font-medium text-indigo-300';
+    welcomeText.textContent = `Welcome, ${user}`;
+
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className =
+      'px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-full transition';
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('vittcott_user');
+      location.reload();
+    });
+
+    welcomeWrap.appendChild(welcomeText);
+    welcomeWrap.appendChild(logoutBtn);
+
+    // Insert into header right area (keeps layout balanced)
+    const headerRight = document.querySelector('nav .flex.items-center.gap-3');
+    if (headerRight) {
+      headerRight.insertBefore(welcomeWrap, headerRight.firstChild);
+      // animate in
+      requestAnimationFrame(() => {
+        welcomeWrap.style.transform = 'translateY(0)';
+        welcomeWrap.style.opacity = '1';
+      });
+    } else {
+      // fallback: insert near signup/login
+      if (signupA && signupA.parentElement) signupA.parentElement.insertBefore(welcomeWrap, signupA);
+      else if (loginA && loginA.parentElement) loginA.parentElement.insertBefore(welcomeWrap, loginA);
+    }
+
+    // Hide original signup/login controls
+    if (signupA) signupA.style.display = 'none';
+    if (loginA) loginA.style.display = 'none';
+
+    // Responsive: ensure it doesn't overcrowd on small screens
+    const ensureWrap = () => {
+      if (window.innerWidth < 720) {
+        welcomeWrap.style.display = 'none';
+      } else {
+        welcomeWrap.style.display = '';
+      }
+    };
+    ensureWrap();
+    window.addEventListener('resize', ensureWrap);
+  } catch (err) {
+    console.error('Welcome script error', err);
+  }
+});
+</script>
 
 </body>
 </html>
